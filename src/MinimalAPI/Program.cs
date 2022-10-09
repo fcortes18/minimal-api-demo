@@ -8,12 +8,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddApiVersioning(options =>
     {
+        options.DefaultApiVersion = new ApiVersion(1, 0);
         options.ReportApiVersions = true;
+        options.ApiVersionReader = new HeaderApiVersionReader("api-version");
     }
 ).AddApiExplorer(options =>
     {
         options.GroupNameFormat = "'v'VVV";
-        options.SubstituteApiVersionInUrl = true;
+        options.SubstituteApiVersionInUrl = false;
     }
 );
 
@@ -28,22 +30,27 @@ var versionSet = app.NewApiVersionSet()
                     .ReportApiVersions()
                     .Build();
 
+var galleryVersionSet = app.NewApiVersionSet("Gallery").Build();
+
 app.UseHttpsRedirection();
 
-app.MapGet("/api/v{version:apiVersion}/hello", () => "Hello world!")
+// 1.0
+app.MapGet("/api/hello", () => "Hello world!")
     .WithApiVersionSet(versionSet)
-    .MapToApiVersion(1.0);
+    .HasApiVersion(1.0);
 
-app.MapGet("/api/v{version:apiVersion}/hello", () => "Hello world 2!")
+// 2.0
+app.MapGet("/api/hello", () => "Hello world 2!")
     .WithApiVersionSet(versionSet)
-    .MapToApiVersion(2.0);
+    .HasApiVersion(2.0);
 
-app.MapPost("/api/v{version:apiVersion}/upload", (FileModel model) =>
+app.MapPost("/api/gallery/upload", (FileModel model) =>
 {
     return Results.Ok();
 })
 .Accepts<FileModel>("multipart/form-data")
-.WithApiVersionSet(versionSet);
+.WithApiVersionSet(galleryVersionSet)
+.HasApiVersion(1.0);
 
 if (app.Environment.IsDevelopment())
 {
