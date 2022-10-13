@@ -30,26 +30,27 @@ var versionSet = app.NewApiVersionSet()
                     .ReportApiVersions()
                     .Build();
 
-var galleryVersionSet = app.NewApiVersionSet("Gallery").Build();
+var uploadVersionSet = app.NewApiVersionSet("Upload")
+                        .Build();
 
 app.UseHttpsRedirection();
 
 // 1.0
 app.MapGet("/api/hello", () => "Hello world!")
     .WithApiVersionSet(versionSet)
-    .HasApiVersion(1.0);
+    .MapToApiVersion(1.0);
 
 // 2.0
 app.MapGet("/api/hello", () => "Hello world 2!")
     .WithApiVersionSet(versionSet)
-    .HasApiVersion(2.0);
+    .MapToApiVersion(2.0);
 
-app.MapPost("/api/gallery/upload", (FileModel model) =>
+app.MapPost("/api/upload", (FileModel model) =>
 {
-    return Results.Ok();
+    return model.File == null ? Results.BadRequest("No file was attached") : Results.Ok(new { fileName = model.File.FileName });
 })
 .Accepts<FileModel>("multipart/form-data")
-.WithApiVersionSet(galleryVersionSet)
+.WithApiVersionSet(uploadVersionSet)
 .HasApiVersion(1.0);
 
 if (app.Environment.IsDevelopment())
