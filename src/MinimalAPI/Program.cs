@@ -129,5 +129,25 @@ app.MapPost("/shoppingcart", async (ShoppingCartItem shoppingCart, StoreDbContex
 .Produces(StatusCodes.Status201Created, typeof(ShoppingCartItem))
 .RequireAuthorization();
 
+app.MapPost("/upload", (FileModel model) =>
+{
+    return model.File == null ? Results.BadRequest("No file was attached") : Results.Ok(new { fileName = model.File.FileName });
+})
+.RequireCors("AllowAll")
+.Accepts<FileModel>("multipart/form-data")
+.Produces(StatusCodes.Status401Unauthorized)
+.Produces(StatusCodes.Status200OK, typeof(IEnumerable<ShoppingCartItem>))
+.Produces(StatusCodes.Status400BadRequest)
+.AllowAnonymous();
+
 app.Run();
 
+internal record FileModel(IFormFile? File)
+{
+    public static async ValueTask<FileModel?> BindAsync(HttpContext context)
+    {
+        var form = await context.Request.ReadFormAsync();
+        var file = form.Files["file"];
+        return new FileModel(file);
+    }
+}
