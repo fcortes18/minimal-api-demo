@@ -29,7 +29,8 @@ var versionSet = app.NewApiVersionSet()
                     .ReportApiVersions()
                     .Build();
 
-var galleryVersionSet = app.NewApiVersionSet("Gallery").Build();
+var galleryVersionSet = app.NewApiVersionSet("Upload")
+                        .Build();
 
 app.UseHttpsRedirection();
 
@@ -43,9 +44,9 @@ app.MapGet("/api/v{version:apiVersion}/hello", () => "Hello world 2!")
     .WithApiVersionSet(versionSet)
     .MapToApiVersion(2.0);
 
-app.MapPost("/api/v{version:apiVersion}/gallery/upload", (FileModel model) =>
+app.MapPost("/api/v{version:apiVersion}/upload", (FileModel model) =>
 {
-    return Results.Ok();
+    return model.File == null ? Results.BadRequest("No file was attached") : Results.Ok(new { fileName = model.File.FileName });
 })
 .Accepts<FileModel>("multipart/form-data")
 .WithApiVersionSet(galleryVersionSet)
