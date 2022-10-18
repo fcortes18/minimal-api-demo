@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using MinimalAPI.Attributes;
 using MinimalAPI.Auth;
 using MinimalAPI.DataSource.Tables;
+using MinimalAPI.Extensions;
+using MinimalAPI.Middleware;
 using MinimalAPI.Swagger;
 using System.Security.Claims;
 using System.Text;
@@ -79,6 +82,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseCors("AllowAll");
 
+app.UseMiddleware<ApiKeyMiddleware>();
+
 app.MapPost("/login", (ITokenHelper _tokenHelper) =>
 {
     var claims = new List<Claim>
@@ -93,6 +98,14 @@ app.MapPost("/login", (ITokenHelper _tokenHelper) =>
 .RequireCors("AllowAll")
 .Produces(StatusCodes.Status200OK)
 .AllowAnonymous();
+
+
+app.MapGet("/hello", () => "Hello world")
+.Produces(StatusCodes.Status401Unauthorized)
+.Produces(StatusCodes.Status200OK, typeof(ShoppingCartItem))
+.Produces(StatusCodes.Status404NotFound)
+//.WithMetadata(new ApiKeyAttribute());
+.RequireApiKey();
 
 // https://github.com/dotnet/aspnetcore/issues/39886
 app.MapGet("/shoppingcart/{id:guid}", async (Guid id, StoreDbContext db) =>
