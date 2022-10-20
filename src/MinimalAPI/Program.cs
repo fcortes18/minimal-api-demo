@@ -83,6 +83,8 @@ app.MapPost("/upload", (FileModel model) =>
 
 app.Run();
 
+public partial class Program { }
+
 internal record FileModel(IFormFile? File)
 {
     public static async ValueTask<FileModel?> BindAsync(HttpContext context)
