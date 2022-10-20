@@ -1,7 +1,5 @@
 ﻿using MinimalAPI.Auth;
 using MinimalAPI.DataSource.Tables;
-using Newtonsoft.Json;
-using System.Text;
 
 namespace MinimalAPI.IntegrationTests
 {
@@ -15,36 +13,32 @@ namespace MinimalAPI.IntegrationTests
         }
 
         [Fact]
-        public async Task CreateShoppingCartItem_ShouldReturnItemCreated()
+        public async Task ShoppingCartItem_LoginPostGet_MatchId()
         {
-            // generate token
-            using var tokenResponse = await _client.PostAsync("/login", null);
-            Assert.True(tokenResponse.IsSuccessStatusCode);
-            var tokenStringResponse = await tokenResponse.Content.ReadAsStringAsync();
-            Assert.False(string.IsNullOrWhiteSpace(tokenStringResponse));
-            var token = JsonConvert.DeserializeObject<Token>(tokenStringResponse);
+            // login
+            using var tokenResponse = await _client
+                .PostAsJsonAsync<StringContent>("/login", null);
+            var token = await tokenResponse.Content.ReadFromJsonAsync<Token>();
             _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token!.AccessToken}");
 
-            // create shopping cart item
+            // create 
             ShoppingCartItem shoppingItem = new()
             {
                 IsPickedUp = false,
                 ItemName = "Test item",
                 Quantity = 1
             };
-            using var createResponse = await _client.PostAsync("/shoppingcart", new StringContent(JsonConvert.SerializeObject(shoppingItem), Encoding.UTF8, "application/json"));
-            Assert.True(createResponse.IsSuccessStatusCode);
-            var createStringResponse = await createResponse.Content.ReadAsStringAsync();
-            Assert.False(string.IsNullOrWhiteSpace(createStringResponse));
-            var createdShoppingCartItem = JsonConvert.DeserializeObject<ShoppingCartItem>(createStringResponse);
-
-            // get shopping cart item created
-            using var response = await _client.GetAsync($"/shoppingcart/{createdShoppingCartItem!.Id}");
-            Assert.True(response.IsSuccessStatusCode);
-            var getStringResponse = await response.Content.ReadAsStringAsync();
-            Assert.False(string.IsNullOrWhiteSpace(getStringResponse));
-            var shoppingCartItem = JsonConvert.DeserializeObject<ShoppingCartItem>(getStringResponse);
-            Assert.True(createdShoppingCartItem!.Id == shoppingCartItem.Id);
+            using var createResponse = await _client
+                .PostAsJsonAsync("/shoppingcart", shoppingItem);
+            var created = await createResponse.Content.ReadFromJsonAsync<ShoppingCartItem>();
+            
+            // read created
+            var read = await _client
+                .GetFromJsonAsync<ShoppingCartItem>($"/shoppingcart/{created!.Id}");
+            
+            // assert
+            Assert.NotNull(read);
+            Assert.True(created.Id == read.Id);
         }
     }
 }
