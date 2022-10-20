@@ -1,5 +1,6 @@
 ﻿using MinimalAPI.Auth;
 using MinimalAPI.DataSource;
+using MinimalAPI.Middleware;
 using MinimalAPI.Swagger;
 
 namespace MinimalAPI
@@ -27,6 +28,7 @@ namespace MinimalAPI
             app.UseAuthentication();
             app.UseAuthorization();
             app.UseCors("AllowAll");
+            app.UseMiddleware<ApiKeyMiddleware>();
         }
     }
 }

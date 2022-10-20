@@ -1,88 +1,43 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using MinimalAPI.Attributes;
+using MinimalAPI;
 using MinimalAPI.Auth;
 using MinimalAPI.DataSource.Tables;
 using MinimalAPI.Extensions;
-using MinimalAPI.Middleware;
-using MinimalAPI.Swagger;
 using System.Security.Claims;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    var securityScheme = new OpenApiSecurityScheme
-    {
-        Name = "JWT Authentication",
-        Description = "Enter JWT Bearer token only",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Reference = new OpenApiReference
-        {
-            Id = JwtBearerDefaults.AuthenticationScheme,
-            Type = ReferenceType.SecurityScheme
-        }
-    };
-    c.AddSecurityDefinition(securityScheme.Reference.Id, securityScheme);
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {securityScheme, Array.Empty<string>()}
-    });
-    c.ParameterFilter<GuidParameterFilter>();
-});
-
-// configure strongly typed TokenOptions object
-var tokenOptionsSection = builder.Configuration.GetSection(nameof(TokenOptions));
-var tokenOptions = tokenOptionsSection.Get<TokenOptions>();
-builder.Services.Configure<TokenOptions>(tokenOptionsSection);
-builder.Services.AddAuthorization();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = tokenOptions?.Issuer,
-        ValidAudience = tokenOptions?.Audience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenOptions?.SecurityKey ?? string.Empty))
-    };
-});
-
-builder.Services.AddCors(options => 
-    {
-        options.AddPolicy("AllowAll", a => a.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
-    }
-);
-
-builder.Services.AddSingleton<ITokenHelper, JwtTokenHelper>();
-builder.Services.AddDbContext<StoreDbContext>(opt => opt.UseSqlServer("CONNECTION_STRING"));
+builder.Services.AddApiServicesSetup(builder.Configuration);
 
 var app = builder.Build();
+app.AddApiAppSetup();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.MapGet("/hello", () => "Hello world")
+.GetEndpointProduces()
+//.WithMetadata(new ApiKeyAttribute());
+.RequireApiKey();
+
+// https://github.com/dotnet/aspnetcore/issues/39886
+app.MapGet("/shoppingcart/{id:guid}", async (Guid id, StoreDbContext db) =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    var item = await db.ShoppingCarts.Where(s => s.Id == id).FirstOrDefaultAsync();
+    return item == null ? Results.NotFound() : Results.Ok(item);
+})
+.RequireCors("AllowAll")
+.GetEndpointProduces(typeof(ShoppingCartItem))
+.RequireAuthorization();
 
-app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseCors("AllowAll");
-
-app.UseMiddleware<ApiKeyMiddleware>();
+app.MapGet("/shoppingcart", async (StoreDbContext db) =>
+{
+    var items = await db.ShoppingCarts.ToListAsync();
+    return items.Any() ? Results.Ok(items) : Results.NotFound();
+})
+.RequireCors("AllowAll")
+.Produces(StatusCodes.Status401Unauthorized)
+.Produces(StatusCodes.Status200OK, typeof(IEnumerable<ShoppingCartItem>))
+.Produces(StatusCodes.Status404NotFound)
+.Produces(StatusCodes.Status400BadRequest)
+.Produces(StatusCodes.Status500InternalServerError)
+.RequireAuthorization();
 
 app.MapPost("/login", (ITokenHelper _tokenHelper) =>
 {
@@ -97,38 +52,10 @@ app.MapPost("/login", (ITokenHelper _tokenHelper) =>
 })
 .RequireCors("AllowAll")
 .Produces(StatusCodes.Status200OK)
+.Produces(StatusCodes.Status404NotFound)
+.Produces(StatusCodes.Status400BadRequest)
+.Produces(StatusCodes.Status500InternalServerError)
 .AllowAnonymous();
-
-
-app.MapGet("/hello", () => "Hello world")
-.Produces(StatusCodes.Status401Unauthorized)
-.Produces(StatusCodes.Status200OK, typeof(ShoppingCartItem))
-.Produces(StatusCodes.Status404NotFound)
-//.WithMetadata(new ApiKeyAttribute());
-.RequireApiKey();
-
-// https://github.com/dotnet/aspnetcore/issues/39886
-app.MapGet("/shoppingcart/{id:guid}", async (Guid id, StoreDbContext db) =>
-{
-    var item = await db.ShoppingCarts.Where(s => s.Id == id).FirstOrDefaultAsync();
-    return item == null ? Results.NotFound() : Results.Ok(item);
-})
-.RequireCors("AllowAll")
-.Produces(StatusCodes.Status401Unauthorized)
-.Produces(StatusCodes.Status200OK, typeof(ShoppingCartItem))
-.Produces(StatusCodes.Status404NotFound)
-.RequireAuthorization();
-
-app.MapGet("/shoppingcart", async (StoreDbContext db) =>
-{
-    var items = await db.ShoppingCarts.ToListAsync();
-    return items.Any() ? Results.Ok(items) : Results.NotFound();
-})
-.RequireCors("AllowAll")
-.Produces(StatusCodes.Status401Unauthorized)
-.Produces(StatusCodes.Status200OK, typeof(IEnumerable<ShoppingCartItem>))
-.Produces(StatusCodes.Status404NotFound)
-.RequireAuthorization();
 
 app.MapPost("/shoppingcart", async (ShoppingCartItem shoppingCart, StoreDbContext db) =>
 {
@@ -140,6 +67,7 @@ app.MapPost("/shoppingcart", async (ShoppingCartItem shoppingCart, StoreDbContex
 .RequireCors("AllowAll")
 .Produces(StatusCodes.Status401Unauthorized)
 .Produces(StatusCodes.Status201Created, typeof(ShoppingCartItem))
+.Produces(StatusCodes.Status400BadRequest)
 .RequireAuthorization();
 
 app.MapPost("/upload", (FileModel model) =>
