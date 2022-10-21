@@ -17,7 +17,7 @@ namespace MinimalAPI.IntegrationTests
 
             var responseText = await response.Content.ReadAsStringAsync();
             Assert.False(string.IsNullOrEmpty(responseText));
-            Assert.Equal("Hello world!", responseText);
+            Assert.Equal("Hello World!", responseText);
         }
     }
 }
